@@ -30,4 +30,7 @@ Follow [@WadeGrimridge](https://x.com/WadeGrimridge) on X
 
 ## License
 
-© 2026 All rights reserved.
+Copyright © 2026 Wade Grimridge.
+
+This project is licensed under the GNU General Public License v3.0.
+See [LICENSE](LICENSE).
