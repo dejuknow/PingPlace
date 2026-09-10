@@ -237,6 +237,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       kAXWindowCreatedNotification as String, for: appElement, label: "Notification Center app")
     register(
       AppConstants.childrenChangedNotification, for: appElement, label: "Notification Center app")
+    // Banners that arrive in an existing window, or return to it when the Notification Center
+    // panel closes, post AXLayoutChanged but none of the notifications above.
+    register(
+      kAXLayoutChangedNotification as String, for: appElement, label: "Notification Center app")
     refreshWindowObservers()
     info("AXObserver ready for Notification Center pid=\(app.processIdentifier)")
   }
