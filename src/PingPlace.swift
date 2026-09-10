@@ -374,11 +374,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     let existingPlacement = placementByWindow[window]
+    // The window can already be offset when PingPlace first sees it (for example after a relaunch
+    // while a banner is visible), so derive its default origin instead of trusting its position.
+    let defaultOrigin = defaultWindowOrigin(containing: bannerFrame) ?? windowFrame.origin
     let placement =
       existingPlacement
       ?? WindowPlacementState(
-        originalOrigin: windowFrame.origin,
-        baselineWindowFrame: windowFrame,
+        originalOrigin: defaultOrigin,
+        baselineWindowFrame: CGRect(origin: defaultOrigin, size: windowFrame.size),
         baselineBannerFrame: bannerFrame
       )
 
@@ -449,6 +452,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       y: globalTopY - (windowFrame.minY + windowFrame.height / 2)
     )
     return NSScreen.screens.first { $0.frame.contains(appKitPoint) }
+  }
+
+  // Notification Center's banner window covers its screen, so its default origin is that screen's
+  // top-left corner in accessibility coordinates. The banner is always on screen, so it picks the screen.
+  private func defaultWindowOrigin(containing bannerFrame: CGRect) -> CGPoint? {
+    guard let screen = containingScreen(for: bannerFrame) else { return nil }
+    let globalTopY = NSScreen.screens.map(\.frame.maxY).max() ?? 0
+    return CGPoint(x: screen.frame.minX, y: globalTopY - screen.frame.maxY)
   }
 
   private func targetOrigin(for windowFrame: CGRect, bannerFrame: CGRect) -> CGPoint? {
