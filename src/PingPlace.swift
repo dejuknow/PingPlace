@@ -427,14 +427,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let screenFrame = screen.frame
     let visibleFrame = screen.visibleFrame
 
+    // A Dock on the left or right narrows the visible frame, and macOS keeps banners inside it,
+    // so a right-side Dock shifts the banner left of the window's right edge by the Dock width.
+    let leftDockInset = visibleFrame.minX - screenFrame.minX
+    let rightDockInset = screenFrame.maxX - visibleFrame.maxX
+
     let localBannerX = max(
-      0, windowFrame.width - bannerFrame.width - AppConstants.bannerRightPadding)
-    let rightPadding = max(0, windowFrame.width - (localBannerX + bannerFrame.width))
+      0,
+      windowFrame.width - bannerFrame.width - AppConstants.bannerRightPadding - rightDockInset)
 
     let x: CGFloat
     switch currentPosition {
     case .topLeft, .middleLeft, .bottomLeft:
-      x = rightPadding - localBannerX
+      x = leftDockInset + AppConstants.bannerRightPadding - localBannerX
     case .topMiddle, .deadCenter, .bottomMiddle:
       x = screenFrame.minX + (screenFrame.width - bannerFrame.width) / 2 - localBannerX
     case .topRight, .middleRight, .bottomRight:
@@ -453,7 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     debug(
-      "targetOrigin position=\(currentPosition.rawValue) window=\(NSStringFromRect(windowFrame)) banner=\(NSStringFromRect(bannerFrame)) screen=\(NSStringFromRect(screenFrame)) visible=\(NSStringFromRect(visibleFrame)) localBannerX=\(localBannerX) rightPadding=\(rightPadding) target=\(NSStringFromPoint(CGPoint(x: x, y: y)))"
+      "targetOrigin position=\(currentPosition.rawValue) window=\(NSStringFromRect(windowFrame)) banner=\(NSStringFromRect(bannerFrame)) screen=\(NSStringFromRect(screenFrame)) visible=\(NSStringFromRect(visibleFrame)) localBannerX=\(localBannerX) leftDockInset=\(leftDockInset) rightDockInset=\(rightDockInset) target=\(NSStringFromPoint(CGPoint(x: x, y: y)))"
     )
 
     return CGPoint(x: x, y: y)
