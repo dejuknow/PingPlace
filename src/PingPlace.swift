@@ -31,10 +31,14 @@ private enum AppConstants {
   static let widgetIdentifierPrefix = "widget-local:"
   static let maxAccessibilityNodesPerWindow = 10_000
   static let dockPadding: CGFloat = 30
+  // Long enough to outlast the notification fade-out animation.
+  static let restoreDelay: TimeInterval = 0.7
   static let bannerRightPadding: CGFloat = 16
   static let bannerSubroles: Set<String> = [
     "AXNotificationCenterBanner", "AXNotificationCenterAlert",
     "AXNotificationCenterNotification", "AXNotificationCenterBannerWindow",
+    // Several notifications on screen at once are exposed as a single stack container.
+    "AXNotificationCenterAlertStack",
   ]
   static let subsystem = "com.grimridge.PingPlace"
 }
@@ -168,6 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var statusItem: NSStatusItem?
   private var observedWindows = Set<AXUIElement>()
   private var placementByWindow = [AXUIElement: WindowPlacementState]()
+  private var pendingRestores = [AXUIElement: DispatchWorkItem]()
 
   private let logger = Logger.app
   private let logFileURL = FileManager.default.homeDirectoryForCurrentUser
@@ -333,6 +338,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let banner: AXUIElement
     switch classify(window) {
     case .panel:
+      cancelPendingRestore(window)
       restoreWindowIfNeeded(window, reason: "Notification Center panel opened")
       debug("Skipping Notification Center panel state")
       return
@@ -340,9 +346,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       debug("Skipping desktop widget window")
       return
     case .banner(let element):
+      cancelPendingRestore(window)
       banner = element
     case .other:
-      restoreWindowIfNeeded(window, reason: "No banner visible")
+      scheduleRestore(window, reason: "No banner visible")
       debug("Skipping window without banner")
       return
     case .indeterminate:
@@ -356,7 +363,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       let bannerFrame = banner.frame(),
       let windowFrame = window.frame()
     else {
-      restoreWindowIfNeeded(window, reason: "No banner visible")
+      scheduleRestore(window, reason: "No banner visible")
       debug("Skipping window without banner")
       return
     }
@@ -403,6 +410,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
   private func moveAll() {
     notificationCenterWindows.forEach(move)
+  }
+
+  // A banner leaves the accessibility tree as soon as its fade-out starts, so restoring right away
+  // makes the fading notification jump to the default corner. Wait out the animation instead, and
+  // cancel if a banner or the panel shows up first.
+  private func scheduleRestore(_ window: AXUIElement, reason: String) {
+    guard placementByWindow[window] != nil, pendingRestores[window] == nil else { return }
+    let item = DispatchWorkItem { [weak self] in
+      guard let self else { return }
+      self.pendingRestores.removeValue(forKey: window)
+      self.restoreWindowIfNeeded(window, reason: "\(reason) (deferred)")
+    }
+    pendingRestores[window] = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + AppConstants.restoreDelay, execute: item)
+  }
+
+  private func cancelPendingRestore(_ window: AXUIElement) {
+    pendingRestores.removeValue(forKey: window)?.cancel()
   }
 
   private func restoreWindowIfNeeded(_ window: AXUIElement, reason: String) {
